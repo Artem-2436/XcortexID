@@ -3,199 +3,253 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Xcortex ID</title>
-    <!-- Загружаем библиотеку Supabase -->
+    <title>Xcortex ID Authorization</title>
+    <!-- Подключаем Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
     <style>
-        /* Минималистичный стиль Xcortex */
-        body { background: #121212; color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .card { background: #1e1e1e; padding: 30px; border-radius: 12px; width: 90%; max-width: 400px; text-align: center; border: 1px solid #333; }
-        h2 { margin-bottom: 10px; }
-        p { color: #aaa; font-size: 14px; margin-bottom: 25px; }
-        button { width: 100%; padding: 12px; margin: 5px 0; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; }
-        .btn-github { background: white; color: black; }
-        .btn-email { background: transparent; border: 1px solid #444; color: white; }
-        .btn-primary { background: #3b82f6; color: white; }
-        .hidden { display: none; }
-        .error { color: red; font-size: 12px; margin-top: 10px; }
-        input { width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #444; background: #2a2a2a; color: white; box-sizing: border-box; }
+        :root {
+            --bg-color: #0f0f1a;
+            --glass-bg: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #00d2ff;
+            --text-main: #ffffff;
+            --text-muted: #aaaaaa;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        /* Анимированный фон */
+        .background-animation {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1;
+            background: radial-gradient(circle at 50% 50%, #1a1a2e 0%, #0f0f1a 100%);
+        }
+        
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.6;
+            animation: float 10s infinite ease-in-out alternate;
+        }
+        .orb:nth-child(1) { width: 300px; height: 300px; background: #00d2ff; top: 10%; left: 10%; }
+        .orb:nth-child(2) { width: 250px; height: 250px; background: #9b5de5; bottom: 10%; right: 10%; animation-delay: -5s; }
+
+        @keyframes float {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(30px, 50px) scale(1.1); }
+        }
+
+        /* Карточка авторизации (Glassmorphism) */
+        .auth-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 40px;
+            width: 350px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        h1 { margin-top: 0; font-weight: 300; letter-spacing: 2px; color: var(--accent); }
+        
+        .input-group { margin-bottom: 20px; text-align: left; }
+        label { display: block; margin-bottom: 5px; font-size: 0.9em; color: var(--text-muted); }
+        input {
+            width: 100%;
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid var(--glass-border);
+            background: rgba(0,0,0,0.2);
+            color: white;
+            outline: none;
+            box-sizing: border-box;
+            transition: border-color 0.3s;
+        }
+        input:focus { border-color: var(--accent); }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            border-radius: 10px;
+            border: none;
+            background: linear-gradient(90deg, #00d2ff, #9b5de5);
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, opacity 0.2s;
+            margin-top: 10px;
+        }
+        button:hover { opacity: 0.9; transform: translateY(-2px); }
+        button:active { transform: translateY(0); }
+
+        .hidden { display: none !important; }
+        
+        /* Экран подтверждения "Continue as..." */
+        #confirm-screen p { font-size: 1.2em; margin: 20px 0; }
+        .user-avatar-placeholder {
+            width: 80px; height: 80px;
+            background: var(--glass-bg);
+            border-radius: 50%;
+            margin: 0 auto 20px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2em; color: var(--accent);
+            border: 2px solid var(--glass-border);
+        }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <!-- Блок загрузки -->
-    <div id="loading" class="card">Загрузка...</div>
-
-    <!-- Блок: Не вошел -->
-    <div id="login-view" class="card hidden">
-        <h2>Sign in to Xcortex</h2>
-        <p>Выбери способ входа</p>
-        <button onclick="signInGitHub()" class="btn-github">Continue with GitHub</button>
-        <button onclick="showEmailForm()" class="btn-email">Enter Email Code</button>
-        <div id="msg-login" class="error"></div>
+    <div class="background-animation">
+        <div class="orb"></div>
+        <div class="orb"></div>
     </div>
 
-    <!-- Блок: Форма почты -->
-    <div id="email-view" class="card hidden">
-        <h2>Email Login</h2>
-        <p>Мы отправим код на почту</p>
-        <input type="text" id="email-input" placeholder="your@email.com">
-        <button onclick="sendOtp()" class="btn-primary">Send Code</button>
-        <button onclick="backToLogin()" style="background:none; color:#aaa; border:none; margin-top:10px;">Back</button>
-        <div id="msg-email" class="error"></div>
+    <div class="auth-card">
+        <h1>Xcortex ID</h1>
+        
+        <!-- Экран Логина (по умолчанию скрыт, если есть сессия) -->
+        <div id="login-screen">
+            <p style="color:var(--text-muted)">Войдите в аккаунт Xcortex</p>
+            <form id="login-form">
+                <div class="input-group">
+                    <label>Email</label>
+                    <input type="email" id="email" required placeholder="you@example.com">
+                </div>
+                <div class="input-group">
+                    <label>Password</label>
+                    <input type="password" id="password" required placeholder="••••••••">
+                </div>
+                <button type="submit">Login</button>
+            </form>
+        </div>
+
+        <!-- Экран Подтверждения ("Узнал браузер") -->
+        <div id="confirm-screen" class="hidden">
+            <div class="user-avatar-placeholder">👤</div>
+            <p>Вы вошли как:</p>
+            <h2 id="display-name" style="margin: 10px 0;">User Name</h2>
+            <p style="font-size: 0.9em; color: var(--text-muted);">Разрешить доступ к сайту?</p>
+            <button id="continue-btn">Продолжить</button>
+            <button id="logout-btn" style="background: transparent; border: 1px solid var(--glass-border); margin-top: 10px;">Не я / Выйти</button>
+        </div>
     </div>
 
-    <!-- Блок: Уже вошел -->
-    <div id="profile-view" class="card hidden">
-        <h2>Вы вошли!</h2>
-        <p id="user-info">Email: ...</p>
-        <button onclick="goBack()" class="btn-primary">Продолжить на сайте</button>
-        <button onclick="signOut()" class="btn-email">Сменить аккаунт</button>
-    </div>
-</div>
+    <script>
+        // --- КОНФИГУРАЦИЯ SUPABASE ---
+const SUPABASE_URL = 'https://xxxxx.supabase.co'; // ЗАМЕНИ НА СВОЙ URL
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.xxxxx'; // ЗАМЕНИ НА СВОЙ KEY
 
-<script>
-    // ================= НАСТРОЙКИ =================
-    const SUPABASE_URL = 'https://ifsokgkfatghsxeoqofl.supabase.co'; 
-    const SUPABASE_KEY = 'sb_publishable_WlIcNs2dJz_Se_wJEXM-FA_5IFGi8OL'; 
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Элементы DOM
+const loginScreen = document.getElementById('login-screen');
+const confirmScreen = document.getElementById('confirm-screen');
+const displayNameEl = document.getElementById('display-name');
+const loginForm = document.getElementById('login-form');
+const continueBtn = document.getElementById('continue-btn');
+const logoutBtn = document.getElementById('logout-btn');
+
+// Функция проверки текущей сессии
+async function checkSession() {
+    const { data: { session }, error } = await supabase.auth.getSession();
     
-    // Белый список доменов, куда можно вернуться после входа
-    // Добавь сюда свои сайты (например, 'my-site.vercel.app')
-    const ALLOWED_DOMAINS = [
-        'localhost',
-        'github.io',
-        'vercel.app',
-        'pages.dev'
-    ];
-    // =============================================
-
-    let supabase;
-    let redirectUrl = null;
-
-    // Инициализация при загрузке
-    window.onload = async () => {
-        if (!window.supabase) return alert("Supabase не загрузился");
-        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    if (error || !session) {
+        showLogin();
+    } else {
+        // Браузер "узнал" пользователя (есть активная сессия в этом домене)
+        // Но нам нужно получить профиль (имя), если оно не в metadata
+        let userName = session.user.email.split('@')[0]; // Дефолтное имя
         
-        // Проверяем параметр ?redirect=...
-        const urlParams = new URLSearchParams(window.location.search);
-        const rawRedirect = urlParams.get('redirect');
-        
-        if (rawRedirect) {
-            if (isSafeRedirect(rawRedirect)) {
-                redirectUrl = rawRedirect;
-            } else {
-                document.getElementById('msg-login').innerText = "Небезопасный редирект заблокирован";
-            }
-        }
-
-        checkSession();
-    };
-
-    // Проверка безопасности домена
-    function isSafeRedirect(urlString) {
         try {
-            const url = new URL(urlString);
-            const host = url.hostname.toLowerCase();
-            
-            // Разрешаем localhost напрямую
-            if (host === 'localhost') return true;
-
-            // Проверяем, заканчивается ли хост на один из разрешенных доменов
-            // Например: artiom.github.io подходит под правило 'github.io'
-            for (let domain of ALLOWED_DOMAINS) {
-                if (host.endsWith(domain)) return true;
+            // Пытаемся получить имя из таблицы profiles (если она настроена)
+            const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
+            if (profile && profile.full_name) {
+                userName = profile.full_name;
             }
-            return false;
         } catch (e) {
-            return false;
-        }
-    }
-
-    // Показываем нужный экран в зависимости от статуса
-    async function checkSession() {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        document.getElementById('loading').classList.add('hidden');
-        
-        if (session) {
-            showProfile(session.user);
-        } else {
-            document.getElementById('login-view').classList.remove('hidden');
-        }
-    }
-
-    function showProfile(user) {
-        document.getElementById('profile-view').classList.remove('hidden');
-        document.getElementById('user-info').innerText = user.email;
-    }
-
-    // Вход через GitHub
-    async function signInGitHub() {
-        // Возвращаемся на эту же страницу после OAuth
-        const returnUrl = window.location.origin + '/id.html'; 
-        
-        const { error } = await supabase.auth.signInWithOAuth({
-            provider: 'github',
-            options: { redirectTo: returnUrl }
-        });
-        if (error) alert(error.message);
-    }
-
-    // Показать форму email
-    function showEmailForm() {
-        document.getElementById('login-view').classList.add('hidden');
-        document.getElementById('email-view').classList.remove('hidden');
-    }
-
-    function backToLogin() {
-        document.getElementById('email-view').classList.add('hidden');
-        document.getElementById('login-view').classList.remove('hidden');
-    }
-
-    // Отправка кода на почту (OTP)
-    async function sendOtp() {
-        const email = document.getElementById('email-input').value;
-        if (!email) return;
-
-        const { error } = await supabase.auth.signInWithOtp({ email });
-        if (error) {
-            document.getElementById('msg-email').innerText = error.message;
-        } else {
-            alert("Код отправлен! Проверьте почту.");
-            // Supabase обычно шлет ссылку. Если хочешь именно ввод кода вручную,
-            // тебе понадобится бэкенд. Для статического сайта проще использовать Magic Link (ссылку).
-            // Но если ссылка ведет на этот же id.html, сессия установится автоматически.
-        }
-    }
-
-    // Кнопка "Продолжить"
-    function goBack() {
-        if (!redirectUrl) {
-            alert("Нет адреса для возврата!");
-            return;
+            console.log("No profile table or permission denied, using email prefix.");
         }
 
-        // Получаем токены прямо сейчас
-        supabase.auth.getSession().then(({ data }) => {
-            if (data.session) {
-                const access = data.session.access_token;
-                const refresh = data.session.refresh_token;
-                
-                // Передаем токены в ХЭШЕ (#), чтобы они не попали в логи серверов
-                const finalUrl = `${redirectUrl}#xcortex_access=${access}&xcortex_refresh=${refresh}`;
-                window.location.href = finalUrl;
-            }
-        });
+        showConfirm(userName, session.access_token);
+    }
+}
+
+function showLogin() {
+    loginScreen.classList.remove('hidden');
+    confirmScreen.classList.add('hidden');
+}
+
+function showConfirm(name, token) {
+    loginScreen.classList.add('hidden');
+    confirmScreen.classList.remove('hidden');
+    displayNameEl.textContent = name;
+    
+    // Сохраняем токен во временную переменную для кнопки Continue
+    window.currentToken = token; 
+}
+
+// Обработчик формы логина
+loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (error) {
+        alert('Ошибка входа: ' + error.message);
+        return;
     }
 
-    // Выход
-    async function signOut() {
-        await supabase.auth.signOut();
-        location.reload();
-    }
-</script>
+    // Успешный вход, обновляем UI
+    let userName = email.split('@')[0];
+    // Опционально: снова проверить профиль для имени
+    const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', data.user.id).single();
+    if (profile?.full_name) userName = profile.full_name;
+
+    showConfirm(userName, data.session.access_token);
+});
+
+// Кнопка "Продолжить"
+continueBtn.addEventListener('click', () => {
+    if (!window.currentToken) return;
+
+    // ВАЖНО: Здесь происходит перенаправление обратно на основной сайт.
+    // Ты должен указать URL своего основного сайта (где находится кнопка Sign In).
+    const MAIN_SITE_URL = 'http://localhost:3000'; // Или твой прод адрес
+    
+    // Добавляем токен в хэш URL
+    // Формат: https://main-site.com/#access_token=JWT_TOKEN&expires_at=...
+    // Для простоты передадим только токен и тип ответа
+    const redirectUrl = `${MAIN_SITE_URL}/#/xcortex_callback?token=${encodeURIComponent(window.currentToken)}`;
+    
+    window.location.href = redirectUrl;
+});
+
+// Кнопка "Не я / Выйти"
+logoutBtn.addEventListener('click', async () => {
+    await supabase.auth.signOut();
+    location.reload(); // Перезагружаем страницу, чтобы показать форму логина
+});
+
+// Запуск при загрузке
+checkSession();
+    </script>
 </body>
 </html>
