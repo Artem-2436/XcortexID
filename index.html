@@ -64,6 +64,8 @@
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
             text-align: center;
             transition: all 0.3s ease;
+            position: relative;
+            z-index: 10;
         }
 
         h1 { margin-top: 0; font-weight: 300; letter-spacing: 2px; color: var(--accent); }
@@ -111,6 +113,13 @@
             font-size: 2em; color: var(--accent);
             border: 2px solid var(--glass-border);
         }
+        
+        .error-msg {
+            color: #ff4444;
+            font-size: 0.8em;
+            margin-top: 10px;
+            min-height: 1.2em;
+        }
     </style>
 </head>
 <body>
@@ -123,7 +132,7 @@
     <div class="auth-card">
         <h1>Xcortex ID</h1>
         
-        <!-- Экран Логина (по умолчанию скрыт, если есть сессия) -->
+        <!-- Экран Логина -->
         <div id="login-screen">
             <p style="color:var(--text-muted)">Войдите в аккаунт Xcortex</p>
             <form id="login-form">
@@ -136,6 +145,7 @@
                     <input type="password" id="password" required placeholder="••••••••">
                 </div>
                 <button type="submit">Login</button>
+                <div id="login-error" class="error-msg"></div>
             </form>
         </div>
 
@@ -152,104 +162,139 @@
 
     <script>
         // --- КОНФИГУРАЦИЯ SUPABASE ---
-const SUPABASE_URL = 'https://ifsokgkfatghsxeoqofl.supabase.co'; // ЗАМЕНИ НА СВОЙ URL
-const SUPABASE_ANON_KEY = 'sb_publishable_WlIcNs2dJz_Se_wJEXM-FA_5IFGi8OL'; // ЗАМЕНИ НА СВОЙ KEY
+        // ВАЖНО: Замени эти значения на свои реальные из проекта Supabase
+        const SUPABASE_URL = 'https://ifsokgkfatghsxeoqofl.supabase.co'; 
+        const SUPABASE_ANON_KEY = 'sb_publishable_WlIcNs2dJz_Se_wJEXM-FA_5IFGi8OL'; 
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // ИСПРАВЛЕНИЕ ОШИБКИ:
+        // Мы НЕ называем переменную 'supabase', так как это может конфликтовать с глобальной областью.
+        // Используем уникальное имя 'xcAuthClient'.
+        let xcAuthClient; 
 
-// Элементы DOM
-const loginScreen = document.getElementById('login-screen');
-const confirmScreen = document.getElementById('confirm-screen');
-const displayNameEl = document.getElementById('display-name');
-const loginForm = document.getElementById('login-form');
-const continueBtn = document.getElementById('continue-btn');
-const logoutBtn = document.getElementById('logout-btn');
-
-// Функция проверки текущей сессии
-async function checkSession() {
-    const { data: { session }, error } = await supabase.auth.getSession();
-    
-    if (error || !session) {
-        showLogin();
-    } else {
-        // Браузер "узнал" пользователя (есть активная сессия в этом домене)
-        // Но нам нужно получить профиль (имя), если оно не в metadata
-        let userName = session.user.email.split('@')[0]; // Дефолтное имя
-        
         try {
-            // Пытаемся получить имя из таблицы profiles (если она настроена)
-            const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
-            if (profile && profile.full_name) {
-                userName = profile.full_name;
+            // Проверяем, загружена ли библиотека createClient
+            if (typeof createClient !== 'function') {
+                throw new Error("Supabase library not loaded correctly.");
             }
-        } catch (e) {
-            console.log("No profile table or permission denied, using email prefix.");
+            
+            // Создаем экземпляр клиента
+            xcAuthClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        } catch (err) {
+            console.error("Critical Initialization Error:", err);
+            document.querySelector('.auth-card').innerHTML = '<h2 style="color:red">Ошибка загрузки системы</h2><p>' + err.message + '</p>';
         }
 
-        showConfirm(userName, session.access_token);
-    }
-}
+        // Элементы DOM
+        const loginScreen = document.getElementById('login-screen');
+        const confirmScreen = document.getElementById('confirm-screen');
+        const displayNameEl = document.getElementById('display-name');
+        const loginForm = document.getElementById('login-form');
+        const continueBtn = document.getElementById('continue-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const loginErrorEl = document.getElementById('login-error');
 
-function showLogin() {
-    loginScreen.classList.remove('hidden');
-    confirmScreen.classList.add('hidden');
-}
+        // Функция проверки текущей сессии
+        async function checkSession() {
+            if (!xcAuthClient) return;
 
-function showConfirm(name, token) {
-    loginScreen.classList.add('hidden');
-    confirmScreen.classList.remove('hidden');
-    displayNameEl.textContent = name;
-    
-    // Сохраняем токен во временную переменную для кнопки Continue
-    window.currentToken = token; 
-}
+            try {
+                const { data: { session }, error } = await xcAuthClient.auth.getSession();
+                
+                if (error || !session) {
+                    showLogin();
+                } else {
+                    // Браузер "узнал" пользователя
+                    let userName = session.user.email.split('@')[0]; 
+                    
+                    // Пытаемся получить имя из metadata, если оно есть
+                    if (session.user.user_metadata && session.user.user_metadata.full_name) {
+                        userName = session.user.user_metadata.full_name;
+                    }
 
-// Обработчик формы логина
-loginForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = document.getElementById('email').value;
-    const password = document.getElementById('password').value;
+                    showConfirm(userName, session.access_token);
+                }
+            } catch (err) {
+                console.error("Session check failed:", err);
+                showLogin();
+            }
+        }
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        function showLogin() {
+            loginScreen.classList.remove('hidden');
+            confirmScreen.classList.add('hidden');
+        }
 
-    if (error) {
-        alert('Ошибка входа: ' + error.message);
-        return;
-    }
+        function showConfirm(name, token) {
+            loginScreen.classList.add('hidden');
+            confirmScreen.classList.remove('hidden');
+            displayNameEl.textContent = name;
+            
+            // Сохраняем токен во временную переменную для кнопки Continue
+            window.currentToken = token; 
+        }
 
-    // Успешный вход, обновляем UI
-    let userName = email.split('@')[0];
-    // Опционально: снова проверить профиль для имени
-    const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', data.user.id).single();
-    if (profile?.full_name) userName = profile.full_name;
+        // Обработчик формы логина
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            loginErrorEl.textContent = ''; // Очищаем ошибку
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
 
-    showConfirm(userName, data.session.access_token);
-});
+            if (!xcAuthClient) {
+                loginErrorEl.textContent = "Система не готова.";
+                return;
+            }
 
-// Кнопка "Продолжить"
-continueBtn.addEventListener('click', () => {
-    if (!window.currentToken) return;
+            try {
+                const { data, error } = await xcAuthClient.auth.signInWithPassword({ email, password });
 
-    // ВАЖНО: Здесь происходит перенаправление обратно на основной сайт.
-    // Ты должен указать URL своего основного сайта (где находится кнопка Sign In).
-    const MAIN_SITE_URL = 'http://localhost:3000'; // Или твой прод адрес
-    
-    // Добавляем токен в хэш URL
-    // Формат: https://main-site.com/#access_token=JWT_TOKEN&expires_at=...
-    // Для простоты передадим только токен и тип ответа
-    const redirectUrl = `${MAIN_SITE_URL}/#/xcortex_callback?token=${encodeURIComponent(window.currentToken)}`;
-    
-    window.location.href = redirectUrl;
-});
+                if (error) {
+                    loginErrorEl.textContent = error.message;
+                    return;
+                }
 
-// Кнопка "Не я / Выйти"
-logoutBtn.addEventListener('click', async () => {
-    await supabase.auth.signOut();
-    location.reload(); // Перезагружаем страницу, чтобы показать форму логина
-});
+                // Успешный вход
+                let userName = email.split('@')[0];
+                if (data.user.user_metadata && data.user.user_metadata.full_name) {
+                    userName = data.user.user_metadata.full_name;
+                }
 
-// Запуск при загрузке
-checkSession();
+                showConfirm(userName, data.session.access_token);
+            } catch (err) {
+                loginErrorEl.textContent = "Произошла непредвиденная ошибка";
+                console.error(err);
+            }
+        });
+
+        // Кнопка "Продолжить"
+        continueBtn.addEventListener('click', () => {
+            if (!window.currentToken) return;
+
+            // !!! ЗАМЕНИ НА АДРЕС ТВОЕГО ОСНОВНОГО САЙТА !!!
+            // Если основной сайт тоже на GitHub Pages, используй полный URL
+            const MAIN_SITE_URL = 'https://твой-ник.github.io/имя-главного-сайта/'; 
+            
+            // Добавляем токен в хэш URL
+            const redirectUrl = `${MAIN_SITE_URL}#token=${encodeURIComponent(window.currentToken)}`;
+            
+            window.location.href = redirectUrl;
+        });
+
+        // Кнопка "Не я / Выйти"
+        logoutBtn.addEventListener('click', async () => {
+            if (xcAuthClient) {
+                await xcAuthClient.auth.signOut();
+            }
+            location.reload(); 
+        });
+
+        // Запуск при загрузке
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', checkSession);
+        } else {
+            checkSession();
+        }
     </script>
 </body>
 </html>
