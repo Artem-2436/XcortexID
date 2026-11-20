@@ -161,88 +161,85 @@
     </div>
 
     <script>
-        // --- КОНФИГУРАЦИЯ SUPABASE ---
-        // ВАЖНО: Замени эти значения на свои реальные из проекта Supabase
-        const SUPABASE_URL = 'https://ifsokgkfatghsxeoqofl.supabase.co'; 
-        const SUPABASE_ANON_KEY = 'sb_publishable_WlIcNs2dJz_Se_wJEXM-FA_5IFGi8OL'; 
+    // --- КОНФИГУРАЦИЯ SUPABASE ---
+    const SUPABASE_URL = 'https://ifsokgkfatghsxeoqofl.supabase.co'; // ТВОЙ URL
+    const SUPABASE_ANON_KEY = 'sb_publishable_WlIcNs2dJz_Se_wJEXM-FA_5IFGi8OL'; // ТВОЙ KEY
 
-        // ИСПРАВЛЕНИЕ ОШИБКИ:
-        // Мы НЕ называем переменную 'supabase', так как это может конфликтовать с глобальной областью.
-        // Используем уникальное имя 'xcAuthClient'.
-        let xcAuthClient; 
+    let xcAuthClient; 
+
+    // ИСПРАВЛЕНИЕ: Используем supabase.createClient вместо просто createClient
+    try {
+        if (typeof window.supabase !== 'undefined' && typeof window.supabase.createClient === 'function') {
+            xcAuthClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            console.log("✅ Xcortex Auth Client initialized successfully");
+        } else {
+            throw new Error("Supabase object or createClient method missing.");
+        }
+    } catch (err) {
+        console.error("❌ Critical Initialization Error:", err);
+        document.querySelector('.auth-card').innerHTML = '<h2 style="color:red">Ошибка загрузки</h2><p>' + err.message + '</p>';
+    }
+
+    // Элементы DOM (проверяем существование перед использованием)
+    const loginScreen = document.getElementById('login-screen');
+    const confirmScreen = document.getElementById('confirm-screen');
+    const displayNameEl = document.getElementById('display-name');
+    const loginForm = document.getElementById('login-form');
+    const continueBtn = document.getElementById('continue-btn');
+    const logoutBtn = document.getElementById('logout-btn');
+    const loginErrorEl = document.getElementById('login-error');
+
+    // Функция проверки текущей сессии
+    async function checkSession() {
+        if (!xcAuthClient) return;
 
         try {
-            // Проверяем, загружена ли библиотека createClient
-            if (typeof createClient !== 'function') {
-                throw new Error("Supabase library not loaded correctly.");
-            }
+            const { data: { session }, error } = await xcAuthClient.auth.getSession();
             
-            // Создаем экземпляр клиента
-            xcAuthClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        } catch (err) {
-            console.error("Critical Initialization Error:", err);
-            document.querySelector('.auth-card').innerHTML = '<h2 style="color:red">Ошибка загрузки системы</h2><p>' + err.message + '</p>';
-        }
-
-        // Элементы DOM
-        const loginScreen = document.getElementById('login-screen');
-        const confirmScreen = document.getElementById('confirm-screen');
-        const displayNameEl = document.getElementById('display-name');
-        const loginForm = document.getElementById('login-form');
-        const continueBtn = document.getElementById('continue-btn');
-        const logoutBtn = document.getElementById('logout-btn');
-        const loginErrorEl = document.getElementById('login-error');
-
-        // Функция проверки текущей сессии
-        async function checkSession() {
-            if (!xcAuthClient) return;
-
-            try {
-                const { data: { session }, error } = await xcAuthClient.auth.getSession();
-                
-                if (error || !session) {
-                    showLogin();
-                } else {
-                    // Браузер "узнал" пользователя
-                    let userName = session.user.email.split('@')[0]; 
-                    
-                    // Пытаемся получить имя из metadata, если оно есть
-                    if (session.user.user_metadata && session.user.user_metadata.full_name) {
-                        userName = session.user.user_metadata.full_name;
-                    }
-
-                    showConfirm(userName, session.access_token);
-                }
-            } catch (err) {
-                console.error("Session check failed:", err);
+            if (error || !session) {
                 showLogin();
+            } else {
+                let userName = session.user.email.split('@')[0]; 
+                if (session.user.user_metadata && session.user.user_metadata.full_name) {
+                    userName = session.user.user_metadata.full_name;
+                }
+                showConfirm(userName, session.access_token);
             }
+        } catch (err) {
+            console.error("Session check failed:", err);
+            showLogin();
         }
+    }
 
-        function showLogin() {
-            loginScreen.classList.remove('hidden');
-            confirmScreen.classList.add('hidden');
-        }
+    function showLogin() {
+        if(loginScreen) loginScreen.classList.remove('hidden');
+        if(confirmScreen) confirmScreen.classList.add('hidden');
+    }
 
-        function showConfirm(name, token) {
-            loginScreen.classList.add('hidden');
-            confirmScreen.classList.remove('hidden');
-            displayNameEl.textContent = name;
-            
-            // Сохраняем токен во временную переменную для кнопки Continue
-            window.currentToken = token; 
-        }
+    function showConfirm(name, token) {
+        if(loginScreen) loginScreen.classList.add('hidden');
+        if(confirmScreen) confirmScreen.classList.remove('hidden');
+        if(displayNameEl) displayNameEl.textContent = name;
+        
+        window.currentToken = token; 
+    }
 
-        // Обработчик формы логина
+    // Обработчик формы логина
+    if (loginForm) {
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            loginErrorEl.textContent = ''; // Очищаем ошибку
+            if(loginErrorEl) loginErrorEl.textContent = ''; 
             
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
+            const emailInput = document.getElementById('email');
+            const passInput = document.getElementById('password');
+            
+            if(!emailInput || !passInput) return;
+
+            const email = emailInput.value;
+            const password = passInput.value;
 
             if (!xcAuthClient) {
-                loginErrorEl.textContent = "Система не готова.";
+                if(loginErrorEl) loginErrorEl.textContent = "Система не готова.";
                 return;
             }
 
@@ -250,11 +247,10 @@
                 const { data, error } = await xcAuthClient.auth.signInWithPassword({ email, password });
 
                 if (error) {
-                    loginErrorEl.textContent = error.message;
+                    if(loginErrorEl) loginErrorEl.textContent = error.message;
                     return;
                 }
 
-                // Успешный вход
                 let userName = email.split('@')[0];
                 if (data.user.user_metadata && data.user.user_metadata.full_name) {
                     userName = data.user.user_metadata.full_name;
@@ -262,39 +258,42 @@
 
                 showConfirm(userName, data.session.access_token);
             } catch (err) {
-                loginErrorEl.textContent = "Произошла непредвиденная ошибка";
+                if(loginErrorEl) loginErrorEl.textContent = "Непредвиденная ошибка";
                 console.error(err);
             }
         });
+    }
 
-        // Кнопка "Продолжить"
+    // Кнопка "Продолжить"
+    if (continueBtn) {
         continueBtn.addEventListener('click', () => {
             if (!window.currentToken) return;
 
             // !!! ЗАМЕНИ НА АДРЕС ТВОЕГО ОСНОВНОГО САЙТА !!!
-            // Если основной сайт тоже на GitHub Pages, используй полный URL
             const MAIN_SITE_URL = 'https://artem-2436.github.io/Xsocial/'; 
             
-            // Добавляем токен в хэш URL
             const redirectUrl = `${MAIN_SITE_URL}#token=${encodeURIComponent(window.currentToken)}`;
             
             window.location.href = redirectUrl;
         });
+    }
 
-        // Кнопка "Не я / Выйти"
+    // Кнопка "Выход"
+    if (logoutBtn) {
         logoutBtn.addEventListener('click', async () => {
             if (xcAuthClient) {
                 await xcAuthClient.auth.signOut();
             }
             location.reload(); 
         });
+    }
 
-        // Запуск при загрузке
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', checkSession);
-        } else {
-            checkSession();
-        }
-    </script>
+    // Запуск при загрузке
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', checkSession);
+    } else {
+        checkSession();
+    }
+</script>
 </body>
 </html>
