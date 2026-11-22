@@ -142,7 +142,7 @@
                 </div>
                 <div class="input-group">
                     <label>пароль</label>
-                    <input type="password" id="password" required placeholder="••••••••">
+                    <input type="text" id="password" required placeholder="••••••••">
                 </div>
                 <button type="submit">Login</button>
                 <div id="login-error" class="error-msg"></div>
@@ -162,12 +162,12 @@
 
     <script>
     // --- КОНФИГУРАЦИЯ SUPABASE ---
-    const SUPABASE_URL = 'https://ifsokgkfatghsxeoqofl.supabase.co'; 
-    const SUPABASE_ANON_KEY = 'sb_publishable_WlIcNs2dJz_Se_wJEXM-FA_5IFGi8OL'; 
+    const SUPABASE_URL = 'https://ifsokgkfatghsxeoqofl.supabase.co'; // ТВОЙ URL
+    const SUPABASE_ANON_KEY = 'sb_publishable_WlIcNs2dJz_Se_wJEXM-FA_5IFGi8OL'; // ТВОЙ KEY
 
     let xcAuthClient; 
 
-    // Инициализация клиента
+    // ИСПРАВЛЕНИЕ: Используем supabase.createClient вместо просто createClient
     try {
         if (typeof window.supabase !== 'undefined' && typeof window.supabase.createClient === 'function') {
             xcAuthClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -180,7 +180,7 @@
         document.querySelector('.auth-card').innerHTML = '<h2 style="color:red">Ошибка загрузки</h2><p>' + err.message + '</p>';
     }
 
-    // Элементы DOM
+    // Элементы DOM (проверяем существование перед использованием)
     const loginScreen = document.getElementById('login-screen');
     const confirmScreen = document.getElementById('confirm-screen');
     const displayNameEl = document.getElementById('display-name');
@@ -189,19 +189,7 @@
     const logoutBtn = document.getElementById('logout-btn');
     const loginErrorEl = document.getElementById('login-error');
 
-    // Глобальная переменная для хранения токена до момента редиректа
-    window.currentToken = null;
-
-    /**
-     * Функция получения URL для редиректа из query параметров (?redirect=...)
-     * Если параметра нет, возвращаем null (значит, нужно остаться здесь или показать ошибку)
-     */
-    function getRedirectUrl() {
-        const urlParams = new URLSearchParams(window.location.search);
-        return urlParams.get('redirect');
-    }
-
-    // Функция проверки текущей сессии при загрузке страницы
+    // Функция проверки текущей сессии
     async function checkSession() {
         if (!xcAuthClient) return;
 
@@ -215,12 +203,7 @@
                 if (session.user.user_metadata && session.user.user_metadata.full_name) {
                     userName = session.user.user_metadata.full_name;
                 }
-                
-                // Сохраняем токен глобально
-                window.currentToken = session.access_token;
-                
-                // Показываем экран подтверждения
-                showConfirm(userName);
+                showConfirm(userName, session.access_token);
             }
         } catch (err) {
             console.error("Session check failed:", err);
@@ -233,10 +216,12 @@
         if(confirmScreen) confirmScreen.classList.add('hidden');
     }
 
-    function showConfirm(name) {
+    function showConfirm(name, token) {
         if(loginScreen) loginScreen.classList.add('hidden');
         if(confirmScreen) confirmScreen.classList.remove('hidden');
         if(displayNameEl) displayNameEl.textContent = name;
+        
+        window.currentToken = token; 
     }
 
     // Обработчик формы логина
@@ -271,11 +256,7 @@
                     userName = data.user.user_metadata.full_name;
                 }
 
-                // Сохраняем токен
-                window.currentToken = data.session.access_token;
-                
-                // Переходим к подтверждению
-                showConfirm(userName);
+                showConfirm(userName, data.session.access_token);
             } catch (err) {
                 if(loginErrorEl) loginErrorEl.textContent = "Непредвиденная ошибка";
                 console.error(err);
@@ -283,33 +264,17 @@
         });
     }
 
-    // Кнопка "Продолжить" — Теперь динамическая!
+    // Кнопка "Продолжить"
     if (continueBtn) {
         continueBtn.addEventListener('click', () => {
             if (!window.currentToken) return;
 
-            // Получаем URL, откуда нас прислали
-            const targetUrl = getRedirectUrl();
-
-            if (targetUrl) {
-                // Декодируем URL на случай, если он был закодирован
-                let decodedTarget = decodeURIComponent(targetUrl);
-                
-                // Проверяем безопасность: разрешаем только http/https ссылки
-                if (!decodedTarget.startsWith('http')) {
-                     alert("Небезопасный URL для редиректа");
-                     return;
-                }
-
-                // Добавляем токен в конец URL через хэш (#token=...)
-                // Хэш используется, потому что сервер не видит данные после него, это безопасно и быстро
-                const finalUrl = `${decodedTarget}#token=${encodeURIComponent(window.currentToken)}`;
-                
-                window.location.href = finalUrl;
-            } else {
-                // Если redirect не указан, можно либо оставить на странице, либо показать сообщение
-                alert("Не указан адрес возврата (parameter ?redirect=). Проверьте ссылку входа.");
-            }
+            // !!! ЗАМЕНИ НА АДРЕС ТВОЕГО ОСНОВНОГО САЙТА !!!
+            const MAIN_SITE_URL = 'https://artem-2436.github.io/Xsocial/'; 
+            
+            const redirectUrl = `${MAIN_SITE_URL}#token=${encodeURIComponent(window.currentToken)}`;
+            
+            window.location.href = redirectUrl;
         });
     }
 
